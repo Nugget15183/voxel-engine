@@ -4,6 +4,8 @@
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
 
+#include "logger.h"
+
 class engine {
 public:
     //initialize the engine
@@ -19,9 +21,12 @@ public:
 
     //update ingame elements
     void update();
+
+    //variables
+    GLFWwindow* window;
 private:
     bool initalized = false;
-    GLFWwindow* window;
+    logger log;
 };
 
 

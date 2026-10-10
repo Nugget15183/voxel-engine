@@ -14,6 +14,8 @@ target_include_directories(glad PUBLIC packages/glad/include)
 add_executable(voxel_engine src/main.cpp
         src/engine.cpp
         src/engine.h
+        src/logger.cpp
+        src/logger.h
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw glad)
