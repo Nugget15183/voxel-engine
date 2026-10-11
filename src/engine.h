@@ -10,7 +10,33 @@
 #include "logger.h"
 #include "util.h"
 
+#include "glm/glm.hpp"
+#include "glm/ext/matrix_clip_space.hpp"
+#include "glm/ext/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+
 struct object;
+
+struct camera {
+    glm::vec3 pos={0,0,0};
+    glm::vec2 rot={0,0.0f};//pitch, yaw
+
+    float speed = 3.0f;
+
+    glm::vec3 front() {
+        glm::vec3 ret = glm::vec3(
+            cos(glm::radians(rot.y)) * cos(glm::radians(rot.x)),
+            sin(glm::radians(rot.x)),
+            sin(glm::radians(rot.y)) * cos(glm::radians(rot.x))
+        );
+
+        return normalize(ret);
+    }
+
+    glm::mat4 view() {
+        return glm::lookAt(pos, pos + front(), {0,1,0});
+    }
+};
 
 class engine {
 public:
@@ -27,13 +53,26 @@ public:
     void update();
 
     //variables
-    GLFWwindow* window;
     unsigned int shader_program;
 
+    GLFWwindow* window;
     util utils;
-private:
-    bool initalized = false;
     logger log;
+    camera *c;
+
+    double dt=0.00;
+    float fps=0.0f;
+    bool firstMouse = true;
+    float sensitivity = 0.1f;
+
+    vector<int> winSize = {800, 600};
+    vector<double> mousePos = {0,0};
+private:
+    float lastframe;
+    float lastfpsUpdate = (float)glfwGetTime();
+    int framecount;
+
+    bool initalized = false;
 
     vector<object> render_queue;
     unsigned int vert_shader;
@@ -41,14 +80,16 @@ private:
 };
 
 struct object {
-    object(engine e, bool is2d, vector<float> verts, vector<unsigned int> indi) {
+    object(engine* e, bool is2d, vector<float> verts, vector<unsigned int> indi) {
         this->is_2d=is2d;
         this->verts=move(verts);
         this->e=move(e);
         this->indicies=move(indi);
     }
 
-    engine e;
+    engine* e;
+
+    logger l = logger();
 
     vector<int> pos = {0,0,0};
     vector<int> rot = {0,0,0};
@@ -78,28 +119,46 @@ struct object {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicies.size() * sizeof(unsigned int), indicies.data(), GL_STATIC_DRAW);
 
         //set vertex attributes
-        GLsizei stride = 8 * sizeof(float);
+        GLsizei stride = 5 * sizeof(float);
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
         glEnableVertexAttribArray(0);
 
-        glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
 
-        glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, stride, (void*)(6 * sizeof(float)));
-        glEnableVertexAttribArray(2);
-
-        texture = e.utils.genTexture("resources/textures/noTexture.png");//temp no texture
+        texture = e->utils.genTexture("resources/textures/noTexture.png");//temp no texture
         glBindVertexArray(0);
     }
 
     void draw() {
-        glUseProgram(e.shader_program);
+        glUseProgram(e->shader_program);
+
+        //perspective projection
+        glm::mat4 proj = glm::perspective(glm::radians(70.0f), (float)e->winSize[0]/e->winSize[1], 0.1f, 100.0f);
+
+        //view matrix
+        glm::mat4 view = e->c->view();
+
+        //model matrix
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(pos[0], pos[1], pos[2]));
+        model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f));
+
+        unsigned int modelLoc = glGetUniformLocation(e->shader_program, "model");
+        unsigned int viewLoc = glGetUniformLocation(e->shader_program, "view");
+        unsigned int projLoc = glGetUniformLocation(e->shader_program, "proj");
+
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
 
         glBindTexture(GL_TEXTURE_2D, texture);//bind texture
         glBindVertexArray(VAO);//bind vao
         glDrawElements(GL_TRIANGLES, indicies.size(), GL_UNSIGNED_INT, 0);//draw
     }
 };
+
+
 
 #endif //VOXEL_ENGINE_ENGINE_H

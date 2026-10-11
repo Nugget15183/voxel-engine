@@ -5,16 +5,47 @@
 #include "logger.h"
 #include "util.h"
 
-void setWindowCallbacks(GLFWwindow* win) {
+void setWindowCallbacks(GLFWwindow* win, engine* e) {
     glfwSetFramebufferSizeCallback(win, [](GLFWwindow* window, int width, int height) -> void {
         glViewport(0, 0, width, height);
+
+        auto* e = static_cast<engine*>(glfwGetWindowUserPointer(window));
+        e->winSize={width, height};
+    });
+
+    glfwSetCursorPosCallback(win, [](GLFWwindow* window, double x, double y) -> void {
+        auto* e = static_cast<engine*>(glfwGetWindowUserPointer(window));
+
+        if (e->firstMouse) {
+            e->firstMouse = false;
+            e->mousePos={x,y};
+            return;
+        }
+
+        float dx = (float)(x - e->mousePos[0]);
+        float dy = (float)(e->mousePos[1] - y);
+        e->mousePos={x,y};
+
+        e->c->rot.x = glm::clamp(e->c->rot.x + dy * e->sensitivity, -89.0f, 89.0f);
+        e->c->rot.y += dx * e->sensitivity;
     });
 }
 
 void handleKeyInput(GLFWwindow* win) {
+    auto* e = static_cast<engine*>(glfwGetWindowUserPointer(win));
+
     if (glfwGetKey(win, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(win, GLFW_TRUE);
     }
+
+    float speed = e->c->speed*(float)e->dt;
+    glm::vec3 front = e->c->front();
+    glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
+
+    if (glfwGetKey(win, GLFW_KEY_W) == GLFW_PRESS) e->c->pos += front * speed;
+    if (glfwGetKey(win, GLFW_KEY_S) == GLFW_PRESS) e->c->pos -= front * speed;
+    if (glfwGetKey(win, GLFW_KEY_A) == GLFW_PRESS) e->c->pos -= right * speed;
+    if (glfwGetKey(win, GLFW_KEY_D) == GLFW_PRESS) e->c->pos += right * speed;
 }
 
 int engine::init() {
@@ -39,7 +70,7 @@ int engine::init() {
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {log.err("GLAD Failed to load."); return -1;}
 
     glViewport(0, 0, 800, 600);//size of the window
-    setWindowCallbacks(window);
+    setWindowCallbacks(window, this);
 
     //Shader initalization
     string rv = utils.readfile("resources/vert.glsl");
@@ -79,7 +110,11 @@ int engine::init() {
     glGetProgramiv(shader_program, GL_LINK_STATUS, &lsucc);
     if (!lsucc) {log.err("Failed to link shaders: " + string(linfo_log)); return -1;}
 
+    //opengl settings and misc stuff
     stbi_set_flip_vertically_on_load(true);
+    glEnable(GL_DEPTH_TEST);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetWindowUserPointer(window, this);
 
     log.info("Initalized successfully");
     return 0;
@@ -90,9 +125,9 @@ void engine::render() {
     while ((err = glGetError()) != GL_NO_ERROR) log.err("GL error: " + std::to_string(err));
 
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    for (object o : render_queue) {
+    for (object& o : render_queue) {
         o.draw();
     }
 
@@ -108,5 +143,17 @@ void engine::submitRenderable(object o) {
 
 void engine::update() {
     handleKeyInput(window);
+
+    float t = (float)glfwGetTime();
+    dt=t-lastframe;
+
+    if (lastfpsUpdate+1<t) {
+        fps=framecount;
+        framecount=0;
+        lastfpsUpdate=t;
+    }
+
+    lastframe=t;
+    framecount++;
 }
 
