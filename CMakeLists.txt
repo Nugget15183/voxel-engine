@@ -16,6 +16,8 @@ add_executable(voxel_engine src/main.cpp
         src/engine.h
         src/logger.cpp
         src/logger.h
+        src/util.h
+        src/stb_image.h
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw glad)
