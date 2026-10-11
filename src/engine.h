@@ -14,6 +14,7 @@
 #include "glm/ext/matrix_clip_space.hpp"
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
+#include "terrain.h"
 
 struct object;
 
@@ -54,6 +55,7 @@ public:
 
     //variables
     unsigned int shader_program;
+    unsigned int textureAtlas;
 
     GLFWwindow* window;
     util utils;
@@ -91,8 +93,8 @@ struct object {
 
     logger l = logger();
 
-    vector<int> pos = {0,0,0};
-    vector<int> rot = {0,0,0};
+    glm::vec3 pos = {0,0,0};
+    glm::vec3 rot = {0,0,0};
 
     vector<float> verts = {};
     vector<unsigned int> indicies = {};
@@ -115,11 +117,12 @@ struct object {
         glBindVertexArray(VAO);
         glBindBuffer(GL_ARRAY_BUFFER, VBO);
         glBufferData(GL_ARRAY_BUFFER, verts.size() * sizeof(float), verts.data(), GL_STATIC_DRAW);
+
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicies.size() * sizeof(unsigned int), indicies.data(), GL_STATIC_DRAW);
 
         //set vertex attributes
-        GLsizei stride = 5 * sizeof(float);
+        GLsizei stride = 8 * sizeof(float);
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
         glEnableVertexAttribArray(0);
@@ -127,7 +130,10 @@ struct object {
         glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, stride, (void*)(3 * sizeof(float)));
         glEnableVertexAttribArray(1);
 
-        texture = e->utils.genTexture("resources/textures/noTexture.png");//temp no texture
+        glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(5 * sizeof(float)));
+        glEnableVertexAttribArray(2);
+
+        texture = e->textureAtlas;
         glBindVertexArray(0);
     }
 
@@ -135,15 +141,14 @@ struct object {
         glUseProgram(e->shader_program);
 
         //perspective projection
-        glm::mat4 proj = glm::perspective(glm::radians(70.0f), (float)e->winSize[0]/e->winSize[1], 0.1f, 100.0f);
+        glm::mat4 proj = glm::perspective(glm::radians(70.0f), (float)e->winSize[0]/e->winSize[1], 0.1f, 10000.0f);
 
         //view matrix
         glm::mat4 view = e->c->view();
 
         //model matrix
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(pos[0], pos[1], pos[2]));
-        model = glm::rotate(model, (float)glfwGetTime() * glm::radians(50.0f), glm::vec3(0.5f, 1.0f, 0.0f));
+        model = glm::translate(model, glm::vec3(pos.x, pos.y, pos.z));
 
         unsigned int modelLoc = glGetUniformLocation(e->shader_program, "model");
         unsigned int viewLoc = glGetUniformLocation(e->shader_program, "view");

@@ -4,8 +4,18 @@
 #include "GLFW/glfw3.h"
 #include "logger.h"
 #include "util.h"
+#include "terrain.h"
 
-void setWindowCallbacks(GLFWwindow* win, engine* e) {
+void loadTerrain(engine* e) {
+    vector<float> verts;
+    vector<unsigned int> indices;
+    buildBlockMesh(GRASS, verts, indices);
+
+    object o(e, false, verts, indices);
+    e->submitRenderable(o);
+}
+
+void setWindowCallbacks(GLFWwindow* win) {
     glfwSetFramebufferSizeCallback(win, [](GLFWwindow* window, int width, int height) -> void {
         glViewport(0, 0, width, height);
 
@@ -70,7 +80,7 @@ int engine::init() {
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {log.err("GLAD Failed to load."); return -1;}
 
     glViewport(0, 0, 800, 600);//size of the window
-    setWindowCallbacks(window, this);
+    setWindowCallbacks(window);
 
     //Shader initalization
     string rv = utils.readfile("resources/vert.glsl");
@@ -116,6 +126,10 @@ int engine::init() {
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetWindowUserPointer(window, this);
 
+    textureAtlas=utils.genTexture("resources/textures/terrain.png");
+
+    loadTerrain(this);
+
     log.info("Initalized successfully");
     return 0;
 }
@@ -151,6 +165,7 @@ void engine::update() {
         fps=framecount;
         framecount=0;
         lastfpsUpdate=t;
+        log.info("FPS: " + std::to_string(fps));
     }
 
     lastframe=t;
