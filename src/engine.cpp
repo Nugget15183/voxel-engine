@@ -5,14 +5,19 @@
 #include "logger.h"
 #include "util.h"
 #include "terrain.h"
+#include <algorithm>
 
 void loadTerrain(engine* e) {
-    vector<float> verts;
-    vector<unsigned int> indices;
-    buildBlockMesh(GRASS, verts, indices);
+    e->t = new terrain();
+    e->t->renderDistance = 8;
 
-    object o(e, false, verts, indices);
-    e->submitRenderable(o);
+    float start = (float)glfwGetTime();
+    e->log.info("Generating terrain...");
+
+    e->t->updateAround(e, e->c->pos, INT_MAX);
+    e->t->remeshDirty(e, SIZE_MAX);
+
+    e->log.info("Terrain generation took " + to_string(glfwGetTime() - start) + "s");
 }
 
 void setWindowCallbacks(GLFWwindow* win) {
@@ -25,6 +30,8 @@ void setWindowCallbacks(GLFWwindow* win) {
 
     glfwSetCursorPosCallback(win, [](GLFWwindow* window, double x, double y) -> void {
         auto* e = static_cast<engine*>(glfwGetWindowUserPointer(window));
+
+        if (!e->mCaptured) return;
 
         if (e->firstMouse) {
             e->firstMouse = false;
@@ -45,7 +52,15 @@ void handleKeyInput(GLFWwindow* win) {
     auto* e = static_cast<engine*>(glfwGetWindowUserPointer(win));
 
     if (glfwGetKey(win, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-        glfwSetWindowShouldClose(win, GLFW_TRUE);
+        auto* e = static_cast<engine*>(glfwGetWindowUserPointer(win));
+
+        e->mCaptured=!e->mCaptured;
+
+        if (e->mCaptured) {
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        } else {
+            glfwSetInputMode(win, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        }
     }
 
     float speed = e->c->speed*(float)e->dt;
@@ -64,7 +79,7 @@ int engine::init() {
 
     log.info("Initalizing...");
 
-    if (!glfwInit()!=0) {log.err("GLFW Failed to initalize."); return -1;}
+    if (!glfwInit()) {log.err("GLFW Failed to initalize."); return -1;}
 
     //window hints
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -123,6 +138,9 @@ int engine::init() {
     //opengl settings and misc stuff
     stbi_set_flip_vertically_on_load(true);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_CULL_FACE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glfwSetWindowUserPointer(window, this);
 
@@ -141,18 +159,56 @@ void engine::render() {
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    for (object& o : render_queue) {
-        o.draw();
-    }
+    // opaque pass
+    for (auto& [id, o] : opaqueRenderables) o.draw();
+
+    // transparent pass
+    std::vector<object*> sorted;
+    sorted.reserve(transparentRenderables.size());
+    for (auto& [id, o] : transparentRenderables) sorted.push_back(&o);
+
+    glm::vec3 camPos = c->pos;
+    std::sort(sorted.begin(), sorted.end(), [&](object* a, object* b) {
+        glm::vec3 da = a->sortPos - camPos, db = b->sortPos - camPos;
+        return glm::dot(da, da) > glm::dot(db, db);   // farthest first
+    });
+
+    glDisable(GL_CULL_FACE);
+    glDepthMask(GL_FALSE);
+    for (object* o : sorted) o->draw();
+    glDepthMask(GL_TRUE);
+    glEnable(GL_CULL_FACE);
 
     glfwSwapBuffers(window);
     glfwPollEvents();
 }
 
-void engine::submitRenderable(object o) {
-    this->render_queue.push_back(o);
-    render_queue.back().create();
-    log.info("Added object to render queue.");
+int engine::submitOpaqueRenderable(object o) {
+    int id = nextRenderId++;
+    auto& slot = opaqueRenderables.emplace(id, std::move(o)).first->second;
+    slot.create();
+    return id;
+}
+
+void engine::removeOpaqueRenderable(int id) {
+    auto it = opaqueRenderables.find(id);
+    if (it == opaqueRenderables.end()) return;
+    it->second.destroy();
+    opaqueRenderables.erase(it);
+}
+
+int engine::submitTRenderable(object o) {
+    int id = nextRenderId++;
+    auto& slot = transparentRenderables.emplace(id, std::move(o)).first->second;
+    slot.create();
+    return id;
+}
+
+void engine::removeTRenderable(int id) {
+    auto it = transparentRenderables.find(id);
+    if (it == transparentRenderables.end()) return;
+    it->second.destroy();
+    transparentRenderables.erase(it);
 }
 
 void engine::update() {
@@ -166,9 +222,13 @@ void engine::update() {
         framecount=0;
         lastfpsUpdate=t;
         log.info("FPS: " + std::to_string(fps));
+
+        this->t->updateAround(this, this->c->pos, INT_MAX);
+        this->t->remeshDirty(this, SIZE_MAX);
     }
 
     lastframe=t;
     framecount++;
+
 }
 

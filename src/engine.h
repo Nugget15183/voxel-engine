@@ -22,7 +22,7 @@ struct camera {
     glm::vec3 pos={0,0,0};
     glm::vec2 rot={0,0.0f};//pitch, yaw
 
-    float speed = 3.0f;
+    float speed = 100.0f;
 
     glm::vec3 front() {
         glm::vec3 ret = glm::vec3(
@@ -47,8 +47,13 @@ public:
     //draw objects
     void render();
 
-    //submit objects for rendering
-    void submitRenderable(object);
+    std::unordered_map<int, object> opaqueRenderables;
+    std::unordered_map<int, object> transparentRenderables;
+    int nextRenderId = 0;
+    int  submitOpaqueRenderable(object o);
+    void removeOpaqueRenderable(int id);
+    int  submitTRenderable(object o);
+    void removeTRenderable(int id);
 
     //update ingame elements
     void update();
@@ -61,24 +66,24 @@ public:
     util utils;
     logger log;
     camera *c;
+    terrain* t;
 
     double dt=0.00;
     float fps=0.0f;
     bool firstMouse = true;
+    bool mCaptured = true;
     float sensitivity = 0.1f;
 
     vector<int> winSize = {800, 600};
     vector<double> mousePos = {0,0};
 private:
-    float lastframe;
+    float lastframe = (float)glfwGetTime();
     float lastfpsUpdate = (float)glfwGetTime();
-    int framecount;
+    int framecount=0;
 
     bool initalized = false;
-
-    vector<object> render_queue;
-    unsigned int vert_shader;
-    unsigned int frag_shader;
+    unsigned int vert_shader=0;
+    unsigned int frag_shader=0;
 };
 
 struct object {
@@ -106,6 +111,8 @@ struct object {
     unsigned int EBO;
     unsigned int texture = 0;
 
+    glm::vec3 sortPos = {0,0,0};
+
     //call once before rendering
     void create() {
         //gen buffers
@@ -122,7 +129,7 @@ struct object {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicies.size() * sizeof(unsigned int), indicies.data(), GL_STATIC_DRAW);
 
         //set vertex attributes
-        GLsizei stride = 8 * sizeof(float);
+        GLsizei stride = 9 * sizeof(float);
 
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
         glEnableVertexAttribArray(0);
@@ -133,8 +140,17 @@ struct object {
         glVertexAttribPointer(2, 3, GL_FLOAT, GL_FALSE, stride, (void*)(5 * sizeof(float)));
         glEnableVertexAttribArray(2);
 
+        glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, (void*)(8 * sizeof(float)));
+        glEnableVertexAttribArray(3);
+
         texture = e->textureAtlas;
         glBindVertexArray(0);
+    }
+
+    void destroy() {
+        if (EBO) { glDeleteBuffers(1, &EBO);      EBO = 0; }
+        if (VBO) { glDeleteBuffers(1, &VBO);      VBO = 0; }
+        if (VAO) { glDeleteVertexArrays(1, &VAO); VAO = 0; }
     }
 
     void draw() {
