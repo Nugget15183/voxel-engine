@@ -3,16 +3,22 @@
 
 #include <bit>
 #include <memory>
+#include <mutex>
+#include <optional>
+#include <queue>
+#include <thread>
+#include <unordered_set>
 #include <glm/glm.hpp>
 
+#include "logger.h"
 #include "worldgen.h"
 
 class engine;
 
+//const+constexprs
 constexpr int ATLAS_TILES = 16;
 constexpr float TILE = 1.0f/ATLAS_TILES;//size of each tile
 constexpr int CX = 16, CY = 128, CZ = 16;
-
 static const glm::ivec3 DIR[6] = {{1,0,0},{-1,0,0},{0,1,0},{0,-1,0},{0,0,1},{0,0,-1}};
 
 //+X, -X, +Y, -Y, +Z, -Z
@@ -34,17 +40,16 @@ enum BlockType {
     WATER,
 };
 
+//structs
 struct UVRect {
     float u0, v0, u1, v1;
 };
-
 struct BlockInfo {
     bool solid;
     bool opaque; //water, glass
     float alpha;
     int tex[6][2];//per face x,y texcoords
 };
-
 struct Chunk {
     glm::ivec2 coord;
     uint8_t blocks[CX * CY * CZ]={};
@@ -57,18 +62,21 @@ struct Chunk {
         return x >= 0 && x < CX && y >= 0 && y < CY && z >= 0 && z < CZ;
     }
 
-    uint8_t get(int x, int y, int z) {
+    uint8_t get(int x, int y, int z) const {
         if (!inBounds(x, y, z)) return AIR;
         return blocks[x + z*CX + y*CX*CZ];
     }
 };
+struct ChunkCoord {int x,y;};
+struct Meshdata {std::vector<float> opaqueVerts, transparentVerts; std::vector<unsigned int> opaqueIdx, transparentIdx;};
+struct ChunkResult {ChunkCoord coord;  std::unique_ptr<Chunk> chunk; Meshdata mesh;};
 
+//voids
 inline UVRect tileUV(int tx, int ty) {
     float u0 = tx * TILE;
     float v1 = 1.0f - ty * TILE;
     return { u0, v1 - TILE, u0 + TILE, v1 };
 }
-
 inline BlockInfo& blockInfo(BlockType t) {
     static BlockInfo infos[] = {
         //                                                    left    right     top    bottom     back    front
@@ -81,11 +89,9 @@ inline BlockInfo& blockInfo(BlockType t) {
     };
     return infos[t];
 }
-
 inline uint64_t chunkKey(int x, int z) {
     return ((uint64_t)(uint32_t)x << 32) | (uint32_t)z;
 }
-
 inline void addFace(std::vector<float>& verts, std::vector<unsigned int>& idx, int face, glm::vec3 base, int tx, int ty, glm::vec3 tint = {1,1,1}, float alpha = 1.0f) {
     UVRect uv = tileUV(tx, ty);
 
@@ -106,32 +112,137 @@ inline void addFace(std::vector<float>& verts, std::vector<unsigned int>& idx, i
     }
     idx.insert(idx.end(), { start, start+1, start+2, start+2, start+3, start });
 }
+int       heightAt(int wx, int wz, const TerrainParams& p);
+BlockType blockFor(int y, int surfaceH, const TerrainParams& p);
+
+//classes
+template <typename T>
+class SafeQueue {
+public:
+    //add an item to the queue
+    void push(T item) {
+        {
+            lock_guard<mutex> lock(m);
+            q.push(move(item));
+        }
+        cv.notify_one(); //wake a worker
+    }
+
+    optional<T> waitPop() {
+        unique_lock<mutex> lock(m);
+
+        //wait for the thread to either finish or close
+        cv.wait(lock, [&]{return !q.empty() || closed;});
+
+        //closed queue and its drained
+        if (closed || q.empty()) return nullopt;
+
+        //grab the item at the front of the queue
+        T item = move(q.front());
+
+        //take the last item off the queue and return the item
+        q.pop();
+        return item;
+    }
+
+    optional<T> tryPop() {
+        lock_guard<mutex> lock(m);
+
+        //if empty queue return, theres nothing to pop
+        if (q.empty()) return nullopt;
+
+        //grab the item at the front of the queue
+        T item = move(q.front());
+
+        //pop last item off the queue and return
+        q.pop();
+        return item;
+    }
+
+    void close() {
+        {
+            //close the queue
+            lock_guard<mutex> lock(m);
+            closed = true;
+        }
+
+        //notify all of the now closed queue
+        cv.notify_all();
+    }
+private:
+    queue<T> q;
+    mutex m;
+    condition_variable cv;
+    bool closed = false;
+};
+
+class CWorker {
+public:
+    using WorkFn = std::function<ChunkResult(ChunkCoord)>;
+
+    //starts the threads
+    void start(int tcount, WorkFn fn) {
+        work = std::move(fn);
+        for (int i = 0; i < tcount; i++)
+            threads.emplace_back([this] { run(); });
+    }
+
+    //stops the threads
+    void stop() {
+        requests.close();
+        for (auto& t : threads) if (t.joinable()) t.join();
+        threads.clear();
+    }
+
+    //stops worker on destruction
+    ~CWorker() { stop(); }
+
+    SafeQueue<ChunkCoord>  requests;
+    SafeQueue<ChunkResult> results;
+private:
+    void run() {
+        //waits for jobs to appear and starts them once they do
+        while (auto job = requests.waitPop())
+            results.push(work(*job));
+    }
+
+    WorkFn work;
+    std::vector<std::thread> threads;
+};
 
 class terrain {
 public:
     int seed = 0;
     int renderDistance=8;
-    void updateAround(engine* e, const glm::vec3& camPos, int maxLoads);
-    void unloadChunk(engine* e, glm::ivec2 pos);
 
     BlockType getBlock(int wx, int y, int wz);
+
+    ChunkResult buildChunkData(glm::ivec2 pos);            //runs on worker threads
+    Chunk* getChunk(int cx, int cy);
+
+    void updateAround(engine* e, const glm::vec3& camPos, int maxLoads);
+    void unloadChunk(engine* e, glm::ivec2 pos);
     void buildChunk(engine* e, glm::ivec2 pos);
     void meshChunk(engine* e, Chunk& c);
     void remeshDirty(engine* e, size_t maxPerCall = 4);
+    void generateChunk(Chunk& c) const;
+    void uploadMesh(engine* e, Chunk& c, Meshdata& m); //main thread only
     bool isBlockSolid(int x, int y, int z);
-    Chunk* getChunk(int cx, int cy);
-    void generateChunk(Chunk& c);
-    TerrainParams params;
 
+    TerrainParams params;
     std::vector<Chunk*> dirty_chunks;
 private:
     std::unordered_map<uint64_t, std::unique_ptr<Chunk>> chunks;
-
     std::vector<glm::ivec2> loadOffsets;//stored nearest -> closeset
+
     int cachedRadius = -1;
     glm::ivec2 lastCamChunk = { INT_MIN, INT_MIN };
     void rebuildOffsets();
-};
+    logger l = logger();
 
+    unordered_set<uint64_t> pending;
+    bool workersStarted = false;
+    CWorker worker;
+};
 
 #endif

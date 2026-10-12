@@ -18,6 +18,57 @@ int floor_div(int a, int b) {
     return res;
 }
 
+template <class NeighborFn>
+static void buildMeshData(const Chunk& c, NeighborFn neighborAt, Meshdata& out) {
+    glm::ivec2 pos = c.coord;
+
+    for (int x = 0; x < CX; x++)
+        for (int y = 0; y < CY; y++)
+            for (int z = 0; z < CZ; z++) {
+                BlockType t = (BlockType)c.get(x, y, z);
+                if (t == AIR) continue;
+                const BlockInfo& info = blockInfo(t);
+
+                for (int f = 0; f < 6; f++) {
+                    glm::ivec3 n = glm::ivec3(x, y, z) + DIR[f];
+
+                    BlockType nt = Chunk::inBounds(n.x, n.y, n.z)
+                        ? (BlockType)c.get(n.x, n.y, n.z)
+                        : neighborAt(n.x + CX*pos.x, n.y, n.z + CZ*pos.y);
+
+                    if (nt != AIR && (blockInfo(nt).opaque || nt == t)) continue;
+
+                    glm::vec3 tint = {1, 1, 1};
+                    if (t == GRASS && f == 2) tint = {0.65f, 0.95f, 0.50f};
+                    if (t == WATER)           tint = {0.45f, 0.65f, 1.0f};
+
+                    glm::vec3 base = {(float)(x + CX*pos.x), (float)y, (float)(z + CZ*pos.y)};
+                    auto& V = info.opaque ? out.opaqueVerts : out.transparentVerts;
+                    auto& I = info.opaque ? out.opaqueIdx   : out.transparentIdx;
+                    addFace(V, I, f, base, info.tex[f][0], info.tex[f][1], tint, info.alpha);
+                }
+            }
+}
+
+//uploads the mesh to be rendered
+void terrain::uploadMesh(engine* e, Chunk& c, Meshdata& m) {
+    if (c.renderId != -1)      { e->removeOpaqueRenderable(c.renderId);  c.renderId = -1; }
+    if (c.waterRenderId != -1) { e->removeTRenderable(c.waterRenderId);  c.waterRenderId = -1; }
+
+    glm::ivec2 pos = c.coord;
+    if (!m.opaqueVerts.empty()) {
+        object o(e, false, m.opaqueVerts, m.opaqueIdx);
+        c.renderId = e->submitOpaqueRenderable(o);
+    }
+    if (!m.transparentVerts.empty()) {
+        object o(e, false, m.transparentVerts, m.transparentIdx);
+        o.sortPos = { pos.x*CX + CX*0.5f, (float)params.seaLevel, pos.y*CZ + CZ*0.5f };
+        c.waterRenderId = e->submitTRenderable(o);
+    }
+    c.dirty = false;
+}
+
+//gets the block at world coords
 BlockType terrain::getBlock(int wx, int y, int wz) {
     if (y < 0 || y >= CY) return AIR;
     int cx = floor_div(wx, CX), cz = floor_div(wz, CZ);
@@ -26,56 +77,46 @@ BlockType terrain::getBlock(int wx, int y, int wz) {
     return (BlockType)c->get(wx - cx*CX, y, wz - cz*CZ);
 }
 
+//creates opaque and transparent vertices and indicies
 void terrain::meshChunk(engine* e, Chunk& c) {
-    std::vector<float> verts, wVerts;               // opaque / water
-    std::vector<unsigned int> idx, wIdx;
-    glm::ivec2 pos = c.coord;
+    Meshdata m;
+    buildMeshData(c, [this](int x,int y,int z) {return getBlock(x, y, z);}, m);
+    uploadMesh(e, c, m);
+}
 
-    if (c.renderId != -1)      { e->removeOpaqueRenderable(c.renderId);  c.renderId = -1; }
-    if (c.waterRenderId != -1) { e->removeTRenderable(c.waterRenderId);  c.waterRenderId = -1; }
+//builds chunk data
+ChunkResult terrain::buildChunkData(glm::ivec2 pos) {
+    //make a chunkresult struct and initalize values
+    ChunkResult r;
+    r.coord = {pos.x, pos.y};
+    r.chunk = make_unique<Chunk>(pos);
 
-    for (int x=0; x < CX; x++)
-    for (int y=0; y < CY; y++)
-    for (int z=0; z < CZ; z++) {
-        BlockType t = (BlockType)c.get(x,y,z);
-        if (t == AIR) continue;
-        const BlockInfo& info = blockInfo(t);
+    //gen chunk data
+    generateChunk(*r.chunk);
 
-        for (int f = 0; f < 6; f++) {
-            glm::ivec3 n = glm::ivec3(x,y,z) + DIR[f];
-
-            BlockType nt = Chunk::inBounds(n.x,n.y,n.z)
-                ? (BlockType)c.get(n.x,n.y,n.z)
-                : getBlock(n.x + CX*pos.x, n.y, n.z + CZ*pos.y);
-
-            // hidden behind an opaque block, or inside a body of the same transparent block
-            if (nt != AIR && (blockInfo(nt).opaque || nt == t)) continue;
-
-            glm::vec3 tint = {1,1,1};
-            if (t == GRASS && f == 2) tint = {0.65f, 0.95f, 0.50f};
-            if (t == WATER)           tint = {0.45f, 0.65f, 1.0f};   // remove if your tile is already blue
-
-            glm::vec3 base = {(float)(x+CX*pos.x), (float)y, (float)(z+CZ*pos.y)};
-            auto& V = info.opaque ? verts : wVerts;
-            auto& I = info.opaque ? idx   : wIdx;
-            addFace(V, I, f, base, info.tex[f][0], info.tex[f][1], tint, info.alpha);
+    int hpad[CX+2][CZ+2];
+    for (int lx=-1; lx<=CX; lx++) {
+        for (int lz=-1; lz<=CZ; lz++) {
+            hpad[lx+1][lz+1]=heightAt(pos.x * CX + lx, pos.y * CZ + lz, params);
         }
     }
 
-    if (!verts.empty()) {
-        object o(e, false, verts, idx);
-        c.renderId = e->submitOpaqueRenderable(o);
-    }
-    if (!wVerts.empty()) {
-        object o(e, false, wVerts, wIdx);
-        o.sortPos = { pos.x*CX + CX*0.5f, (float)params.seaLevel, pos.y*CZ + CZ*0.5f };
-        c.waterRenderId = e->submitTRenderable(o);
-    }
-    c.dirty = false;
+    auto neighborAt = [&](int wx, int y, int wz) -> BlockType {
+        if (y < 0 || y >= CY) return AIR;
+        int lx = wx - pos.x * CX;
+        int lz = wz - pos.y * CZ;
+        return blockFor(y, hpad[lx + 1][lz + 1], params);
+    };
+
+    //build the mesh data and pass the function to get blocks at coords
+    buildMeshData(*r.chunk, neighborAt, r.mesh);
+    return r;
 }
 
 //generates chunk in the given position
 void terrain::buildChunk(engine* e, glm::ivec2 pos) {
+    float start = (float)glfwGetTime();
+
     // replace an existing chunk
     auto it = chunks.find(chunkKey(pos.x, pos.y));
     if (it != chunks.end()) {
@@ -101,6 +142,8 @@ void terrain::buildChunk(engine* e, glm::ivec2 pos) {
     markDirty(pos.x+1, pos.y);
     markDirty(pos.x, pos.y-1);
     markDirty(pos.x, pos.y+1);
+
+    l.info("Chunk took " + std::to_string((glfwGetTime() - start)*10) + "ms to load");
 }
 
 //updates chunks waiting to be updated
@@ -158,13 +201,26 @@ void terrain::unloadChunk(engine* e, glm::ivec2 pos) {
 }
 
 void terrain::updateAround(engine* e, const glm::vec3& camPos, int maxLoads) {
+    if (!workersStarted) {
+        //max thread count
+        int hc = (int)thread::hardware_concurrency();
+
+        worker.start(
+            max(1, hc-2),//thread count, max count - 2
+            [this](ChunkCoord c) {return buildChunkData({c.x, c.y});}//give the worker the function that builds chunk data
+        );
+
+        workersStarted = true;
+    }
+
     if (cachedRadius != renderDistance) rebuildOffsets();
 
     glm::ivec2 cc = { (int)std::floor(camPos.x / CX), (int)std::floor(camPos.z / CZ) };
+    int unloadR = renderDistance + 2;
 
     if (cc != lastCamChunk) {
         lastCamChunk = cc;
-        int unloadR = renderDistance + 2;
+
         std::vector<glm::ivec2> far;
         for (auto& [key, c] : chunks) {
             glm::ivec2 d = c->coord - cc;
@@ -173,12 +229,46 @@ void terrain::updateAround(engine* e, const glm::vec3& camPos, int maxLoads) {
         for (auto& p : far) unloadChunk(e, p);
     }
 
+    int requested = 0;
+    for (glm::ivec2& off : loadOffsets ) {
+        //target chunk coord is camera chunk + offset
+        glm::ivec2 p = cc+off;
+
+        //grab the chunk key
+        uint64_t key = chunkKey(p.x, p.y);
+
+        //if the chunk is already loaded then ignore it
+        if (chunks.count(key) || pending.count(key)) continue;
+
+        //mark the chunk as in pending
+        pending.insert(key);
+
+        worker.requests.push({p.x, p.y});
+        if (++requested >= 8) break; //keep the queue < 8 long
+    }
+
     // load missing chunks, nearest first
-    int loaded = 0;
-    for (const glm::ivec2& off : loadOffsets) {
-        glm::ivec2 p = cc + off;
-        if (getChunk(p.x, p.y)) continue;
-        buildChunk(e, p);
-        if (++loaded >= maxLoads) break;
+    int uploaded = 0;
+    for (glm::ivec2& off : loadOffsets) {
+        //grab the top chunk
+        auto r = worker.results.tryPop();
+
+        //no chunks to upload? then stop
+        if (!r) break;
+
+        //grab the key and remove it from pending, as its finished
+        uint64_t key = chunkKey(r->coord.x, r->coord.y);
+        pending.erase(key);
+
+        //distance from the player to the chunk
+        glm::ivec2 d = glm::ivec2(r->coord.x, r->coord.y) - cc;
+        if (d.x*d.x + d.y*d.y > unloadR*unloadR || uploaded+1>maxLoads) continue; //should the chunk be discarded?
+
+        Chunk* raw = r->chunk.get();
+
+        //upload and register the chunk
+        chunks[key] = std::move(r->chunk);
+        uploadMesh(e, *raw, r->mesh);
+        uploaded++;
     }
 }

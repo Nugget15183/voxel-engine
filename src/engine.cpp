@@ -14,10 +14,15 @@ void loadTerrain(engine* e) {
     float start = (float)glfwGetTime();
     e->log.info("Generating terrain...");
 
-    e->t->updateAround(e, e->c->pos, INT_MAX);
-    e->t->remeshDirty(e, SIZE_MAX);
+    //wait till the starting chunk is loaded
+    int ccx = (int)floor(e->c->pos.x / CX);
+    int ccz = (int)floor(e->c->pos.z / CZ);
 
-    e->log.info("Terrain generation took " + to_string(glfwGetTime() - start) + "s");
+    while (!e->t->getChunk(ccx, ccz)) {
+        e->t->updateAround(e, e->c->pos, 4);
+        this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+    e->log.info("First chunk ready after " + std::to_string(glfwGetTime() - start) + "s");
 }
 
 void setWindowCallbacks(GLFWwindow* win) {
@@ -214,21 +219,19 @@ void engine::removeTRenderable(int id) {
 void engine::update() {
     handleKeyInput(window);
 
-    float t = (float)glfwGetTime();
-    dt=t-lastframe;
+    float now = (float)glfwGetTime();
+    dt=now-lastframe;
 
-    if (lastfpsUpdate+1<t) {
+    this->t->updateAround(this, this->c->pos, 2);
+    this->t->remeshDirty(this, 2);
+
+    if (lastfpsUpdate+1<now) {
         fps=framecount;
         framecount=0;
-        lastfpsUpdate=t;
+        lastfpsUpdate=now;
         log.info("FPS: " + std::to_string(fps));
-
-        this->t->updateAround(this, this->c->pos, INT_MAX);
-        this->t->remeshDirty(this, SIZE_MAX);
     }
 
-    lastframe=t;
+    lastframe=now;
     framecount++;
-
 }
-

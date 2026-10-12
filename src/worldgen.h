@@ -5,6 +5,9 @@
 #ifndef VOXEL_ENGINE_WORLDGEN_H
 #define VOXEL_ENGINE_WORLDGEN_H
 
+#include "worldgen.h"
+#include "stb_perlin.h"
+
 struct TerrainParams {
     int   seed        = 1337;
     int   seaLevel    = 62;
@@ -18,6 +21,7 @@ struct TerrainParams {
 };
 
 class worldgen {
+
 };
 
 

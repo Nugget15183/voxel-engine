@@ -13,17 +13,32 @@
 
 using namespace std;
 
+//change resource lookup mode based on dev build vs release
+#ifdef EMBED_RESOURCES
+inline EmbeddedFile* lookupEmbedded(string& path) {return findEmbedded(path);}
+#else
+inline EmbeddedFile* lookupEmbedded(string&) {return nullptr;}
+#endif
+
+inline string diskpath(string& path) {
+#ifdef RESOURCE_DIR
+    string prefix = "resources/";
+    if (path.rfind(prefix, 0) == 0) return string(RESOURCE_DIR) + path.substr(prefix.size());
+#endif
+    return path;
+}
+
 class util {
 public:
     logger log = logger();
 
     string readfile(string path) {
-        // embedded copy first (release builds)
-        if (const EmbeddedFile* f = findEmbedded(path))
+        //embedded copy
+        if (const EmbeddedFile* f = lookupEmbedded(path))
             return string((const char*)f->data, f->size);
 
-        // fall back to disk (handy while developing)
-        std::ifstream file(path);
+        //disk
+        std::ifstream file(diskpath(path));
         if (!file) log.err("Failed to open file: " + path);
         std::string content((std::istreambuf_iterator<char>(file)),
                              std::istreambuf_iterator<char>());
@@ -34,10 +49,10 @@ public:
         int width, height, nrChannels;
         unsigned char* data = nullptr;
 
-        if (const EmbeddedFile* f = findEmbedded(path))
+        if (const EmbeddedFile* f = lookupEmbedded(path))
             data = stbi_load_from_memory(f->data, (int)f->size, &width, &height, &nrChannels, 0);
         else
-            data = stbi_load(path.c_str(), &width, &height, &nrChannels, 0);
+            data = stbi_load(diskpath(path).c_str(), &width, &height, &nrChannels, 0);
 
         if (!data) {
             log.err("Failed to load texture: " + path);
