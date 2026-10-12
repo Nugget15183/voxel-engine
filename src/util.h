@@ -6,7 +6,10 @@
 #include <string>
 #include <fstream>
 
+#include "glad/glad.h"
+#include "logger.h"
 #include "stb_image.h"
+#include "embedded.h"
 
 using namespace std;
 
@@ -15,7 +18,13 @@ public:
     logger log = logger();
 
     string readfile(string path) {
+        // embedded copy first (release builds)
+        if (const EmbeddedFile* f = findEmbedded(path))
+            return string((const char*)f->data, f->size);
+
+        // fall back to disk (handy while developing)
         std::ifstream file(path);
+        if (!file) log.err("Failed to open file: " + path);
         std::string content((std::istreambuf_iterator<char>(file)),
                              std::istreambuf_iterator<char>());
         return content;
@@ -23,7 +32,13 @@ public:
 
     unsigned int genTexture(string path) {
         int width, height, nrChannels;
-        unsigned char* data = stbi_load(path.c_str(), &width, &height, &nrChannels, 0);
+        unsigned char* data = nullptr;
+
+        if (const EmbeddedFile* f = findEmbedded(path))
+            data = stbi_load_from_memory(f->data, (int)f->size, &width, &height, &nrChannels, 0);
+        else
+            data = stbi_load(path.c_str(), &width, &height, &nrChannels, 0);
+
         if (!data) {
             log.err("Failed to load texture: " + path);
             return 0;
@@ -53,6 +68,5 @@ public:
         return texture;
     }
 };
-
 
 #endif //VOXEL_ENGINE_UTIL_H
