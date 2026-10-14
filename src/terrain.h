@@ -38,6 +38,7 @@ enum BlockType {
     GRASS,
     SAND,
     WATER,
+    BEDROCK,
 };
 
 //structs
@@ -85,7 +86,8 @@ inline BlockInfo& blockInfo(BlockType t) {
         { true,  true, 1.0f, {{2,0},{2,0},{2,0},{2,0},{2,0},{2,0}} },//dirt
         { true,  true, 1.0f, {{3,0},{3,0},{0,0},{2,0},{3,0},{3,0}} },//grass
         { true,  true, 1.0f, {{2,1},{2,1},{2,1},{2,1},{2,1},{2,1}} },//sand
-        { false,  false,0.95f,{{15,13},{15,13},{15,13},{15,13},{15,13},{15,13}} },//water
+        { false,  false,0.9f,{{15,13},{15,13},{15,13},{15,13},{15,13},{15,13}} },//water
+        { true,  true, 1.0f, {{1,1},{1,1},{1,1},{1,1},{1,1},{1,1}} },//bedrock
     };
     return infos[t];
 }
@@ -98,7 +100,7 @@ inline void addFace(std::vector<float>& verts, std::vector<unsigned int>& idx, i
     float u[4] = {uv.u0, uv.u1, uv.u1, uv.u0};
     float v[4] = {uv.v0, uv.v0, uv.v1, uv.v1};
 
-    unsigned int start = verts.size()/9;
+    unsigned int start = verts.size()/10;
     for (int i=0; i<4; i++) {
         verts.push_back(base.x+FACE[face][i][0]);
         verts.push_back(base.y+FACE[face][i][1]);
@@ -109,11 +111,12 @@ inline void addFace(std::vector<float>& verts, std::vector<unsigned int>& idx, i
         verts.push_back(tint.g);
         verts.push_back(tint.b);
         verts.push_back(alpha);
+        verts.push_back((float)face);
     }
     idx.insert(idx.end(), { start, start+1, start+2, start+2, start+3, start });
 }
 int       heightAt(int wx, int wz, const TerrainParams& p);
-BlockType blockFor(int y, int surfaceH, const TerrainParams& p);
+BlockType blockFor(int x, int y, int z, int surfaceH, const TerrainParams& p);
 
 //classes
 template <typename T>
@@ -213,11 +216,11 @@ private:
 class terrain {
 public:
     int seed = 0;
-    int renderDistance=8;
+    int renderDistance=8;//gets set to the camera's renderdistance later
 
     BlockType getBlock(int wx, int y, int wz);
 
-    ChunkResult buildChunkData(glm::ivec2 pos);            //runs on worker threads
+    ChunkResult buildChunkData(glm::ivec2 pos); //runs on worker threads
     Chunk* getChunk(int cx, int cy);
 
     void updateAround(engine* e, const glm::vec3& camPos, int maxLoads);

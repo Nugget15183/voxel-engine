@@ -9,7 +9,7 @@
 
 void loadTerrain(engine* e) {
     e->t = new terrain();
-    e->t->renderDistance = 8;
+    e->t->renderDistance = 16;
 
     float start = (float)glfwGetTime();
     e->log.info("Generating terrain...");
@@ -120,13 +120,21 @@ int engine::init() {
     int vsucc;
     char vinfo_log[512];
     glGetShaderiv(vert_shader, GL_COMPILE_STATUS, &vsucc);
-    if (!vsucc) {log.err("Failed to compile vertex shader: " + string(vinfo_log)); return -1;}
+    if (!vsucc) {
+        glGetShaderInfoLog(vert_shader, sizeof(vinfo_log), NULL, vinfo_log);
+        log.err("Failed to compile vertex shader: " + string(vinfo_log));
+        return -1;
+    }
 
     //confirm frag shader compiled successfully
     int fsucc;
     char finfo_log[512];
     glGetShaderiv(frag_shader, GL_COMPILE_STATUS, &fsucc);
-    if (!fsucc) {log.err("Failed to compile fragment shader: " + string(finfo_log)); return -1;}
+    if (!fsucc) {
+        glGetShaderInfoLog(frag_shader, sizeof(finfo_log), NULL, finfo_log);
+        log.err("Failed to compile fragment shader: " + string(finfo_log));
+        return -1;
+    }
 
     //create shader program and link
     shader_program=glCreateProgram();
@@ -138,7 +146,11 @@ int engine::init() {
     int lsucc;
     char linfo_log[512];
     glGetProgramiv(shader_program, GL_LINK_STATUS, &lsucc);
-    if (!lsucc) {log.err("Failed to link shaders: " + string(linfo_log)); return -1;}
+    if (!lsucc) {
+        glGetProgramInfoLog(shader_program, sizeof(linfo_log), NULL, linfo_log);
+        log.err("Failed to link shaders: " + string(linfo_log));
+        return -1;
+    }
 
     //opengl settings and misc stuff
     stbi_set_flip_vertically_on_load(true);
@@ -161,7 +173,7 @@ void engine::render() {
     GLenum err;
     while ((err = glGetError()) != GL_NO_ERROR) log.err("GL error: " + std::to_string(err));
 
-    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+    glClearColor(0.52f, 0.81f, 0.92f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // opaque pass

@@ -8,6 +8,12 @@
 #include "stb_perlin.h"
 
 int main() {
+    //skybox
+    //ui elements such as text
+    //proper lighting
+    //polishing
+    //biomes + more block variety
+
     engine e;
 
     camera c = camera();
@@ -18,8 +24,6 @@ int main() {
         glfwTerminate();
         return -1;
     }
-
-
 
     while (!glfwWindowShouldClose(e.window)) {
         e.update();

@@ -39,12 +39,13 @@ static void buildMeshData(const Chunk& c, NeighborFn neighborAt, Meshdata& out) 
                     if (nt != AIR && (blockInfo(nt).opaque || nt == t)) continue;
 
                     glm::vec3 tint = {1, 1, 1};
-                    if (t == GRASS && f == 2) tint = {0.65f, 0.95f, 0.50f};
-                    if (t == WATER)           tint = {0.45f, 0.65f, 1.0f};
-
                     glm::vec3 base = {(float)(x + CX*pos.x), (float)y, (float)(z + CZ*pos.y)};
                     auto& V = info.opaque ? out.opaqueVerts : out.transparentVerts;
                     auto& I = info.opaque ? out.opaqueIdx   : out.transparentIdx;
+
+                    if (t == GRASS && f == 2) tint = {0.65f, 0.95f, 0.50f};
+                    if (t == WATER && f == 2) tint = {0.0f, 0.0f, 1.0f};
+
                     addFace(V, I, f, base, info.tex[f][0], info.tex[f][1], tint, info.alpha);
                 }
             }
@@ -105,7 +106,7 @@ ChunkResult terrain::buildChunkData(glm::ivec2 pos) {
         if (y < 0 || y >= CY) return AIR;
         int lx = wx - pos.x * CX;
         int lz = wz - pos.y * CZ;
-        return blockFor(y, hpad[lx + 1][lz + 1], params);
+        return blockFor(wx, y, wz, hpad[lx + 1][lz + 1], params);
     };
 
     //build the mesh data and pass the function to get blocks at coords
@@ -262,7 +263,7 @@ void terrain::updateAround(engine* e, const glm::vec3& camPos, int maxLoads) {
 
         //distance from the player to the chunk
         glm::ivec2 d = glm::ivec2(r->coord.x, r->coord.y) - cc;
-        if (d.x*d.x + d.y*d.y > unloadR*unloadR || uploaded+1>maxLoads) continue; //should the chunk be discarded?
+        if (d.x*d.x + d.y*d.y > unloadR*unloadR) continue; //should the chunk be discarded?
 
         Chunk* raw = r->chunk.get();
 

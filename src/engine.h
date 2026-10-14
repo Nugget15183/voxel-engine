@@ -49,7 +49,9 @@ public:
 
     std::unordered_map<int, object> opaqueRenderables;
     std::unordered_map<int, object> transparentRenderables;
+
     int nextRenderId = 0;
+
     int  submitOpaqueRenderable(object o);
     void removeOpaqueRenderable(int id);
     int  submitTRenderable(object o);
@@ -129,8 +131,9 @@ struct object {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicies.size() * sizeof(unsigned int), indicies.data(), GL_STATIC_DRAW);
 
         //set vertex attributes
-        GLsizei stride = 9 * sizeof(float);
+        GLsizei stride = 10 * sizeof(float);
 
+        //non-int attribs
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
         glEnableVertexAttribArray(0);
 
@@ -142,6 +145,9 @@ struct object {
 
         glVertexAttribPointer(3, 1, GL_FLOAT, GL_FALSE, stride, (void*)(8 * sizeof(float)));
         glEnableVertexAttribArray(3);
+
+        glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, stride, (void*)(9 * sizeof(float)));
+        glEnableVertexAttribArray(4);
 
         texture = e->textureAtlas;
         glBindVertexArray(0);
@@ -174,12 +180,13 @@ struct object {
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
 
+        unsigned int camPosLoc = glGetUniformLocation(e->shader_program, "camPosition");
+        glUniform3fv(camPosLoc, 1, glm::value_ptr(e->c->pos));
+
         glBindTexture(GL_TEXTURE_2D, texture);//bind texture
         glBindVertexArray(VAO);//bind vao
         glDrawElements(GL_TRIANGLES, indicies.size(), GL_UNSIGNED_INT, 0);//draw
     }
 };
-
-
 
 #endif //VOXEL_ENGINE_ENGINE_H

@@ -5,6 +5,7 @@
 #ifndef VOXEL_ENGINE_WORLDGEN_H
 #define VOXEL_ENGINE_WORLDGEN_H
 
+#include "logger.h"
 #include "worldgen.h"
 #include "stb_perlin.h"
 
@@ -12,7 +13,7 @@ struct TerrainParams {
     int   seed        = 1337;
     int   seaLevel    = 62;
     float baseHeight  = 64.0f;   // average ground level
-    float amplitude   = 28.0f;   // max deviation from baseHeight
+    float amplitude   = 28.0f;   // max deviation from baseHeight 28
     float frequency   = 0.016f;  // lower = broader hills
     int   octaves     = 5;
     float lacunarity  = 2.0f;    // frequency multiplier per octave
@@ -21,7 +22,6 @@ struct TerrainParams {
 };
 
 class worldgen {
-
 };
 
 
