@@ -5,6 +5,8 @@ layout (location = 2) in vec3 aTint;
 layout (location = 3) in float aAlpha;
 layout (location = 4) in float aNormal;//+X, -X, +Y, -Y, +Z, -Z
 
+//comment
+
 out vec2 TexCoord;
 out vec4 Tint;
 out vec3 FragPos;

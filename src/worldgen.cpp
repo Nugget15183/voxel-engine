@@ -2,6 +2,8 @@
 #include "terrain.h"
 #include "glm/glm.hpp"
 
+//comment
+
 static float fbm2D(float wx, float wz, const TerrainParams& p) {
     float sum = 0.0f, amp = 1.0f, freq = p.frequency, norm = 0.0f;
     for (int i = 0; i < p.octaves; i++) {

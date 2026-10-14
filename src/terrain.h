@@ -13,6 +13,8 @@
 #include "logger.h"
 #include "worldgen.h"
 
+//comment
+
 class engine;
 
 //const+constexprs

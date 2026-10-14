@@ -1,6 +1,8 @@
 #version 330 core
 out vec4 FragColor;
 
+
+//comment
 in vec2 TexCoord;
 in vec4 Tint;
 in vec3 FragPos;

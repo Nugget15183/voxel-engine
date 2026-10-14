@@ -16,6 +16,8 @@
 #include "glm/gtc/type_ptr.hpp"
 #include "terrain.h"
 
+//comment
+
 struct object;
 
 struct camera {

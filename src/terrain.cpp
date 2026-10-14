@@ -8,6 +8,8 @@
 #include "stb_perlin.h"
 #include "worldgen.h"
 
+//comment
+
 int floor_div(int a, int b) {
     int res = a / b;
     int rem = a % b;

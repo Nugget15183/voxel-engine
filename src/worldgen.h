@@ -9,6 +9,8 @@
 #include "worldgen.h"
 #include "stb_perlin.h"
 
+//comment
+
 struct TerrainParams {
     int   seed        = 1337;
     int   seaLevel    = 62;

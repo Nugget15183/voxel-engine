@@ -7,6 +7,8 @@
 #include "terrain.h"
 #include <algorithm>
 
+//comment
+
 void loadTerrain(engine* e) {
     e->t = new terrain();
     e->t->renderDistance = 16;
