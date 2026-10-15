@@ -57,6 +57,7 @@ struct Chunk {
     glm::ivec2 coord;
     uint8_t blocks[CX * CY * CZ]={};
 
+    bool meshed = false;
     bool dirty = false;
     int renderId = -1;
     int waterRenderId = -1;

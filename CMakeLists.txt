@@ -37,6 +37,7 @@ add_executable(${PROJECT_NAME}
         src/worldgen.cpp
         src/worldgen.h
         src/embedded.h
+        src/cavecarver.h
 )
 target_include_directories(${PROJECT_NAME} PRIVATE src)
 target_link_libraries(${PROJECT_NAME} PRIVATE glfw glad glm::glm)

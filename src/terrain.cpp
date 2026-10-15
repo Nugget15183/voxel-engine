@@ -7,6 +7,7 @@
 #include "engine.h"
 #include "stb_perlin.h"
 #include "worldgen.h"
+#include "cavecarver.h"
 
 //comment
 
@@ -89,64 +90,12 @@ void terrain::meshChunk(engine* e, Chunk& c) {
 
 //builds chunk data
 ChunkResult terrain::buildChunkData(glm::ivec2 pos) {
-    //make a chunkresult struct and initalize values
     ChunkResult r;
     r.coord = {pos.x, pos.y};
-    r.chunk = make_unique<Chunk>(pos);
-
-    //gen chunk data
+    r.chunk = std::make_unique<Chunk>(pos);
     generateChunk(*r.chunk);
-
-    int hpad[CX+2][CZ+2];
-    for (int lx=-1; lx<=CX; lx++) {
-        for (int lz=-1; lz<=CZ; lz++) {
-            hpad[lx+1][lz+1]=heightAt(pos.x * CX + lx, pos.y * CZ + lz, params);
-        }
-    }
-
-    auto neighborAt = [&](int wx, int y, int wz) -> BlockType {
-        if (y < 0 || y >= CY) return AIR;
-        int lx = wx - pos.x * CX;
-        int lz = wz - pos.y * CZ;
-        return blockFor(wx, y, wz, hpad[lx + 1][lz + 1], params);
-    };
-
-    //build the mesh data and pass the function to get blocks at coords
-    buildMeshData(*r.chunk, neighborAt, r.mesh);
+    CaveCarver(params.seed).carve(*r.chunk);
     return r;
-}
-
-//generates chunk in the given position
-void terrain::buildChunk(engine* e, glm::ivec2 pos) {
-    float start = (float)glfwGetTime();
-
-    // replace an existing chunk
-    auto it = chunks.find(chunkKey(pos.x, pos.y));
-    if (it != chunks.end()) {
-        Chunk* old = it->second.get();
-        if (old->renderId != -1)      e->removeOpaqueRenderable(old->renderId);
-        if (old->waterRenderId != -1) e->removeTRenderable(old->waterRenderId);
-        std::erase(dirty_chunks, old);
-        chunks.erase(it);
-    }
-
-    auto c = std::make_unique<Chunk>(pos);
-    generateChunk(*c);
-
-    Chunk* raw = c.get();
-    chunks[chunkKey(pos.x, pos.y)] = std::move(c);
-    meshChunk(e, *raw);
-
-    auto markDirty = [&](int cx, int cz) {
-        Chunk* n = getChunk(cx, cz);
-        if (n && !n->dirty) { n->dirty = true; dirty_chunks.push_back(n); }
-    };
-    markDirty(pos.x-1, pos.y);
-    markDirty(pos.x+1, pos.y);
-    markDirty(pos.x, pos.y-1);
-    markDirty(pos.x, pos.y+1);
-
-    l.info("Chunk took " + std::to_string((glfwGetTime() - start)*10) + "ms to load");
 }
 
 //updates chunks waiting to be updated
@@ -156,7 +105,12 @@ void terrain::remeshDirty(engine* e, size_t maxPerCall) {
         Chunk* c = dirty_chunks.back();
         dirty_chunks.pop_back();
         if (!c->dirty) continue;
-        meshChunk(e, *c); //clears dirty queue
+        if (!getChunk(c->coord.x-1, c->coord.y) || !getChunk(c->coord.x+1, c->coord.y) ||
+            !getChunk(c->coord.x, c->coord.y-1) || !getChunk(c->coord.x, c->coord.y+1)) {
+            c->dirty = false;   // gets remarked when the missing neighbor arrives
+            continue;
+            }
+        meshChunk(e, *c);
         done++;
     }
 }
@@ -267,11 +221,19 @@ void terrain::updateAround(engine* e, const glm::vec3& camPos, int maxLoads) {
         glm::ivec2 d = glm::ivec2(r->coord.x, r->coord.y) - cc;
         if (d.x*d.x + d.y*d.y > unloadR*unloadR) continue; //should the chunk be discarded?
 
-        Chunk* raw = r->chunk.get();
-
         //upload and register the chunk
+        Chunk* raw = r->chunk.get();
         chunks[key] = std::move(r->chunk);
-        uploadMesh(e, *raw, r->mesh);
+
+        auto mark = [&](int cx, int cz) {
+            Chunk* n = getChunk(cx, cz);
+            if (n && !n->meshed && !n->dirty) { n->dirty = true; dirty_chunks.push_back(n); }
+        };
+        mark(raw->coord.x, raw->coord.y);
+        mark(raw->coord.x - 1, raw->coord.y);
+        mark(raw->coord.x + 1, raw->coord.y);
+        mark(raw->coord.x, raw->coord.y - 1);
+        mark(raw->coord.x, raw->coord.y + 1);
         uploaded++;
     }
 }

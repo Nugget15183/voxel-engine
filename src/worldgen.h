@@ -23,8 +23,4 @@ struct TerrainParams {
     int   dirtDepth   = 3;       // dirt layers under the surface
 };
 
-class worldgen {
-};
-
-
 #endif //VOXEL_ENGINE_WORLDGEN_H
