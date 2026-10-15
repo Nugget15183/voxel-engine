@@ -8,9 +8,9 @@ using namespace std;
 
 class logger {
 public:
-    void info(string msg);
-    void warning(string msg);
-    void err(string msg);
+    void info(const string& msg);
+    void warning(const string& msg);
+    void err(const string& msg);
 };
 
 

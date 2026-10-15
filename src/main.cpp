@@ -8,6 +8,7 @@
 #include "stb_perlin.h"
 
 int main() {
+    //todo:
     //skybox
     //ui elements such as text
     //proper lighting

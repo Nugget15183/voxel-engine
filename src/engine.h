@@ -66,6 +66,10 @@ public:
     unsigned int shader_program;
     unsigned int textureAtlas;
 
+    unsigned int viewLoc;
+    unsigned int projLoc;
+    unsigned int camPosLoc;
+
     GLFWwindow* window;
     util utils;
     logger log;
@@ -81,7 +85,7 @@ public:
     vector<int> winSize = {800, 600};
     vector<double> mousePos = {0,0};
 private:
-    float lastframe = (float)glfwGetTime();
+    float lastframe = 0.0f;
     float lastfpsUpdate = (float)glfwGetTime();
     int framecount=0;
 
@@ -110,9 +114,9 @@ struct object {
 
     bool is_2d = false;
 
-    unsigned int VBO;
-    unsigned int VAO;
-    unsigned int EBO;
+    unsigned int VBO=0;
+    unsigned int VAO=0;
+    unsigned int EBO=0;
     unsigned int texture = 0;
 
     glm::vec3 sortPos = {0,0,0};
@@ -161,30 +165,7 @@ struct object {
         if (VAO) { glDeleteVertexArrays(1, &VAO); VAO = 0; }
     }
 
-    void draw() {
-        glUseProgram(e->shader_program);
-
-        //perspective projection
-        glm::mat4 proj = glm::perspective(glm::radians(70.0f), (float)e->winSize[0]/e->winSize[1], 0.1f, 10000.0f);
-
-        //view matrix
-        glm::mat4 view = e->c->view();
-
-        //model matrix
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(pos.x, pos.y, pos.z));
-
-        unsigned int modelLoc = glGetUniformLocation(e->shader_program, "model");
-        unsigned int viewLoc = glGetUniformLocation(e->shader_program, "view");
-        unsigned int projLoc = glGetUniformLocation(e->shader_program, "proj");
-
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
-
-        unsigned int camPosLoc = glGetUniformLocation(e->shader_program, "camPosition");
-        glUniform3fv(camPosLoc, 1, glm::value_ptr(e->c->pos));
-
+    void draw(glm::mat4 proj, glm::mat4 view) {
         glBindTexture(GL_TEXTURE_2D, texture);//bind texture
         glBindVertexArray(VAO);//bind vao
         glDrawElements(GL_TRIANGLES, indicies.size(), GL_UNSIGNED_INT, 0);//draw

@@ -60,13 +60,13 @@ void terrain::uploadMesh(engine* e, Chunk& c, Meshdata& m) {
 
     glm::ivec2 pos = c.coord;
     if (!m.opaqueVerts.empty()) {
-        object o(e, false, m.opaqueVerts, m.opaqueIdx);
-        c.renderId = e->submitOpaqueRenderable(o);
+        object o(e, false, std::move(m.opaqueVerts), std::move(m.opaqueIdx));
+        c.renderId = e->submitOpaqueRenderable(std::move(o));
     }
     if (!m.transparentVerts.empty()) {
-        object o(e, false, m.transparentVerts, m.transparentIdx);
+        object o(e, false, std::move(m.transparentVerts), std::move(m.transparentIdx));
         o.sortPos = { pos.x*CX + CX*0.5f, (float)params.seaLevel, pos.y*CZ + CZ*0.5f };
-        c.waterRenderId = e->submitTRenderable(o);
+        c.waterRenderId = e->submitTRenderable(std::move(o));
     }
     c.dirty = false;
 }
@@ -247,12 +247,12 @@ void terrain::updateAround(engine* e, const glm::vec3& camPos, int maxLoads) {
         pending.insert(key);
 
         worker.requests.push({p.x, p.y});
-        if (++requested >= 8) break; //keep the queue < 8 long
+        if (++requested >= 8) break; //requests per frame
     }
 
     // load missing chunks, nearest first
     int uploaded = 0;
-    for (glm::ivec2& off : loadOffsets) {
+    while (uploaded < maxLoads) {
         //grab the top chunk
         auto r = worker.results.tryPop();
 

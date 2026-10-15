@@ -5,14 +5,14 @@
 
 using namespace std;
 
-void logger::info(string msg) {
+void logger::info(const string& msg) {
     cout << "[INFO] " + msg << endl;
 }
 
-void logger::warning(string msg) {
+void logger::warning(const string& msg) {
     cout << "[WARN] " + msg << endl;
 }
 
-void logger::err(string msg) {
+void logger::err(const string& msg) {
     cout << "[ERRO] " + msg << endl;
 }

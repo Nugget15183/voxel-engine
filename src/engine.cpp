@@ -7,7 +7,15 @@
 #include "terrain.h"
 #include <algorithm>
 
-//comment
+//normalize func that doesnt return NaN/Inf on 0 len vectors (cmon glm)
+template <typename genType>
+genType safeNormalize(const genType& v, const genType& fallback = genType(0.0f)) {
+    float len = glm::length(v);
+    if (len <= 0.00001f) {
+        return fallback;
+    }
+    return v / len;
+}
 
 void loadTerrain(engine* e) {
     e->t = new terrain();
@@ -29,10 +37,13 @@ void loadTerrain(engine* e) {
 
 void setWindowCallbacks(GLFWwindow* win) {
     glfwSetFramebufferSizeCallback(win, [](GLFWwindow* window, int width, int height) -> void {
-        glViewport(0, 0, width, height);
+        int w = clamp(width, 1, 9999);
+        int h = clamp(height, 1, 9999);
+
+        glViewport(0, 0, w, h);
 
         auto* e = static_cast<engine*>(glfwGetWindowUserPointer(window));
-        e->winSize={width, height};
+        e->winSize={w, h};
     });
 
     glfwSetCursorPosCallback(win, [](GLFWwindow* window, double x, double y) -> void {
@@ -74,10 +85,17 @@ void handleKeyInput(GLFWwindow* win) {
     glm::vec3 front = e->c->front();
     glm::vec3 right = glm::normalize(glm::cross(front, glm::vec3(0.0f, 1.0f, 0.0f)));
 
-    if (glfwGetKey(win, GLFW_KEY_W) == GLFW_PRESS) e->c->pos += front * speed;
-    if (glfwGetKey(win, GLFW_KEY_S) == GLFW_PRESS) e->c->pos -= front * speed;
-    if (glfwGetKey(win, GLFW_KEY_A) == GLFW_PRESS) e->c->pos -= right * speed;
-    if (glfwGetKey(win, GLFW_KEY_D) == GLFW_PRESS) e->c->pos += right * speed;
+    glm::vec2 movedir = {0,0};
+
+    if (glfwGetKey(win, GLFW_KEY_W) == GLFW_PRESS) movedir.y+=1.0f;
+    if (glfwGetKey(win, GLFW_KEY_S) == GLFW_PRESS) movedir.y-=1.0f;
+    if (glfwGetKey(win, GLFW_KEY_A) == GLFW_PRESS) movedir.x+=1.0f;
+    if (glfwGetKey(win, GLFW_KEY_D) == GLFW_PRESS) movedir.x-=1.0f;
+
+    movedir = safeNormalize(movedir);
+
+    e->c->pos += front * (movedir.y * speed);
+    e->c->pos -= right * (movedir.x * speed);
 }
 
 int engine::init() {
@@ -101,7 +119,7 @@ int engine::init() {
     //load glad
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {log.err("GLAD Failed to load."); return -1;}
 
-    glViewport(0, 0, 800, 600);//size of the window
+    glViewport(0, 0, winSize[0], winSize[1]);//size of the window
     setWindowCallbacks(window);
 
     //Shader initalization
@@ -154,6 +172,11 @@ int engine::init() {
         return -1;
     }
 
+    //get uniform locs
+    viewLoc = glGetUniformLocation(shader_program, "view");
+    projLoc = glGetUniformLocation(shader_program, "proj");
+    camPosLoc = glGetUniformLocation(shader_program, "camPosition");
+
     //opengl settings and misc stuff
     stbi_set_flip_vertically_on_load(true);
     glEnable(GL_DEPTH_TEST);
@@ -168,6 +191,7 @@ int engine::init() {
     loadTerrain(this);
 
     log.info("Initalized successfully");
+    lastframe=(float)glfwGetTime();
     return 0;
 }
 
@@ -175,11 +199,23 @@ void engine::render() {
     GLenum err;
     while ((err = glGetError()) != GL_NO_ERROR) log.err("GL error: " + std::to_string(err));
 
+    glUseProgram(shader_program);
+
+    //perspective projection
+    glm::mat4 proj = glm::perspective(glm::radians(70.0f), (float)winSize[0]/(float)winSize[1], 0.1f, 10000.0f);
+
+    //view matrix
+    glm::mat4 view = c->view();
+
+    glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
+    glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(proj));
+    glUniform3fv(camPosLoc, 1, glm::value_ptr(c->pos));
+
     glClearColor(0.52f, 0.81f, 0.92f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     // opaque pass
-    for (auto& [id, o] : opaqueRenderables) o.draw();
+    for (auto& [id, o] : opaqueRenderables) o.draw(proj, view);
 
     // transparent pass
     std::vector<object*> sorted;
@@ -194,7 +230,7 @@ void engine::render() {
 
     glDisable(GL_CULL_FACE);
     glDepthMask(GL_FALSE);
-    for (object* o : sorted) o->draw();
+    for (object* o : sorted) o->draw(proj, view);
     glDepthMask(GL_TRUE);
     glEnable(GL_CULL_FACE);
 
@@ -248,4 +284,6 @@ void engine::update() {
 
     lastframe=now;
     framecount++;
+
+    //glfwSwapInterval(1);//100 fps
 }
