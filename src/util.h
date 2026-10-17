@@ -15,7 +15,7 @@ using namespace std;
 
 //change resource lookup mode based on dev build vs release
 #ifdef EMBED_RESOURCES
-inline EmbeddedFile* lookupEmbedded(string& path) {return findEmbedded(path);}
+const inline EmbeddedFile* lookupEmbedded(string& path) {return findEmbedded(path);}
 #else
 inline EmbeddedFile* lookupEmbedded(string&) {return nullptr;}
 #endif
