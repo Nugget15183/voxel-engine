@@ -63,12 +63,12 @@ public:
     void update();
 
     //variables
-    unsigned int shader_program;
-    unsigned int textureAtlas;
+    unsigned int shader_program=0;
+    unsigned int textureAtlas=0;
 
-    unsigned int viewLoc;
-    unsigned int projLoc;
-    unsigned int camPosLoc;
+    unsigned int viewLoc=0;
+    unsigned int projLoc=0;
+    unsigned int camPosLoc=0;
 
     GLFWwindow* window;
     util utils;
@@ -137,7 +137,7 @@ struct object {
         glBufferData(GL_ELEMENT_ARRAY_BUFFER, indicies.size() * sizeof(unsigned int), indicies.data(), GL_STATIC_DRAW);
 
         //set vertex attributes
-        GLsizei stride = 10 * sizeof(float);
+        GLsizei stride = 11 * sizeof(float);
 
         //non-int attribs
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, stride, (void*)0);
@@ -154,6 +154,10 @@ struct object {
 
         glVertexAttribPointer(4, 1, GL_FLOAT, GL_FALSE, stride, (void*)(9 * sizeof(float)));
         glEnableVertexAttribArray(4);
+
+        glVertexAttribPointer(5, 1, GL_FLOAT, GL_FALSE, stride, (void*)(10 * sizeof(float)));
+        glEnableVertexAttribArray(5);
+
 
         texture = e->textureAtlas;
         glBindVertexArray(0);

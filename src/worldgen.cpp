@@ -29,10 +29,12 @@ BlockType blockFor(int y, int surfaceH, const TerrainParams& p) {
 
 void terrain::generateChunk(Chunk& c) const {
     glm::ivec2 pos = c.coord;
-    for (int x = 0; x < CX; x++)
+    for (int x = 0; x < CX; x++){
         for (int z = 0; z < CZ; z++) {
             int h = heightAt(x + pos.x * CX, z + pos.y * CZ, params);
-            for (int y = 0; y < CY; y++)
+            for (int y = 0; y < CY; y++) {
                 c.blocks[x + z * CX + y * CX * CZ] = (uint8_t)blockFor(y, h, params);
+            }
         }
+    }
 }

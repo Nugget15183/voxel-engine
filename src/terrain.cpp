@@ -25,6 +25,18 @@ template <class NeighborFn>
 static void buildMeshData(const Chunk& c, NeighborFn neighborAt, Meshdata& out) {
     glm::ivec2 pos = c.coord;
 
+    //create a heightmap for lighting calcs
+    int heightmap[CX][CZ];
+    for (int x = 0; x < CX; x++)
+        for (int z = 0; z < CZ; z++) {
+            int h = 0;
+            for (int y = CY - 1; y >= 0; y--) {
+                BlockType b = (BlockType)c.get(x, y, z);
+                if (b != AIR && blockInfo(b).opaque) { h = y; break; }
+            }
+            heightmap[x][z] = h;
+        }
+
     for (int x = 0; x < CX; x++)
         for (int y = 0; y < CY; y++)
             for (int z = 0; z < CZ; z++) {
@@ -49,7 +61,9 @@ static void buildMeshData(const Chunk& c, NeighborFn neighborAt, Meshdata& out) 
                     if (t == GRASS && f == 2) tint = {0.65f, 0.95f, 0.50f};
                     if (t == WATER && f == 2) tint = {0.0f, 0.0f, 1.0f};
 
-                    addFace(V, I, f, base, info.tex[f][0], info.tex[f][1], tint, info.alpha);
+                    //temp lighting calculations based on depth
+                    int depth = glm::clamp(heightmap[x][z]-y, 0, 15);
+                    addFace(V, I, f, base, info.tex[f][0], info.tex[f][1], depth, tint, info.alpha);
                 }
             }
 }
@@ -70,6 +84,7 @@ void terrain::uploadMesh(engine* e, Chunk& c, Meshdata& m) {
         c.waterRenderId = e->submitTRenderable(std::move(o));
     }
     c.dirty = false;
+    c.meshed=true;
 }
 
 //gets the block at world coords

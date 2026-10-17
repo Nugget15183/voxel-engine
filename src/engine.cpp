@@ -192,6 +192,7 @@ int engine::init() {
 
     log.info("Initalized successfully");
     lastframe=(float)glfwGetTime();
+
     return 0;
 }
 
@@ -285,5 +286,4 @@ void engine::update() {
     lastframe=now;
     framecount++;
 
-    //glfwSwapInterval(1);//100 fps
 }

@@ -53,6 +53,7 @@ public:
     }
 
 private:
+    // sets what cave systems originate in what chunk
     void startCaves(JRandom& rand, int ocx, int ocz, Chunk& target) const {
         int n = rand.nextInt(rand.nextInt(rand.nextInt(40) + 1) + 1);
         if (rand.nextInt(15) != 0) n = 0;
