@@ -15,7 +15,8 @@ out vec3 FragPos;
 uniform mat4 view;
 uniform mat4 proj;
 
-const float shades[6] = float[6](0.5, 0.5, 0, 0.5, 0.5, 0.5);
+//                                +X,   -X,  +Y,    -Y,   +Z,   -Z
+const float shades[6] = float[6](0.6f, 0.6f, 1.0f, 0.5f, 0.8f, 0.8f);
 
 float map(float val, float imax, float imin, float omax, float omin) {
     return clamp(omin+((omax-omin)/(imax-imin))*(val-imin),omin,omax);
@@ -23,14 +24,15 @@ float map(float val, float imax, float imin, float omax, float omin) {
 
 void main()
 {
-    gl_Position = proj * view  * vec4(aPos, 1.0);
+    gl_Position = proj * view  * vec4(aPos, 1.0f);
     TexCoord = vec2(aTexCoord.x, aTexCoord.y);
     FragPos = vec3(aPos.x, aPos.y, aPos.z);
 
-    float factint = shades[int(aNormal)];
-    float lightLevelTint = map(aLightLevel, 15.0f, 0.0f, 1.0f, 0.0f);//convert from 15 - 1 to 1 - 0
+    float factint = shades[int(aNormal+0.5f)];//add .5 to protect aganst rounding errors
 
-    float finalTint = lightLevelTint * (1 - factint);
+    //linear light curve
+    float lightLevelTint = map(aLightLevel, 15.0f, 0.0f, 1.0f, 0.0f);//convert from 15 - 1 to 1 - 0
+    float finalTint = lightLevelTint * factint;
     finalTint=max(finalTint, 0.05f);//so its not pitch black
 
     vec3 aTModif = aTint*finalTint;

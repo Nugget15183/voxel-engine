@@ -101,13 +101,13 @@ inline uint64_t chunkKey(int x, int z) {
 }
 int       heightAt(int wx, int wz, const TerrainParams& p);
 BlockType blockFor(int x, int y, int z, int surfaceH, const TerrainParams& p);
-inline void addFace(std::vector<float>& verts, std::vector<unsigned int>& idx, int face, glm::vec3 base, int tx, int ty, int depth, glm::vec3 tint = {1,1,1}, float alpha = 1.0f) {
+inline void addFace(std::vector<float>& verts, std::vector<unsigned int>& idx, int face, glm::vec3 base, int tx, int ty, float depth, glm::vec3 tint = {1,1,1}, float alpha = 1.0f) {
     UVRect uv = tileUV(tx, ty);
 
     float u[4] = {uv.u0, uv.u1, uv.u1, uv.u0};
     float v[4] = {uv.v0, uv.v0, uv.v1, uv.v1};
 
-    int llevel = abs(15-depth);
+    float llevel = abs(15-depth);
 
     unsigned int start = verts.size()/11;
     for (int i=0; i<4; i++) {
@@ -121,7 +121,7 @@ inline void addFace(std::vector<float>& verts, std::vector<unsigned int>& idx, i
         verts.push_back(tint.b);
         verts.push_back(alpha);
         verts.push_back((float)face);
-        verts.push_back((float)llevel);
+        verts.push_back(llevel);
     }
     idx.insert(idx.end(), { start, start+1, start+2, start+2, start+3, start });
 }

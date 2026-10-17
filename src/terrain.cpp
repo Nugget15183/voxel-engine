@@ -37,6 +37,31 @@ static void buildMeshData(const Chunk& c, NeighborFn neighborAt, Meshdata& out) 
             heightmap[x][z] = h;
         }
 
+    //compute neighbor lighting values for sampling
+    float lighting[CX][CZ];
+    for (int x = 0; x < CX; x++)
+        for (int z = 0; z < CZ; z++) {
+            for (int y = 0; y < CY; y++) {
+                float sum =0.0f;
+                int count = 0;
+
+                //loop thru touching blocks
+                for (int dx=-1; dx<=1; dx++) {
+                    for (int dz=-1; dz<=1; dz++) {
+                        int nx = x + dx;
+                        int nz = z + dz;
+
+                        if (nx <= 0 || nx >= CX || nz <= 0 ||nz >= CZ) continue;
+
+                        sum+=(float)heightmap[nx][nz];
+                        count++;
+                    }
+                }
+
+                lighting[x][z] = sum/count;
+            }
+        }
+
     for (int x = 0; x < CX; x++)
         for (int y = 0; y < CY; y++)
             for (int z = 0; z < CZ; z++) {
@@ -61,8 +86,10 @@ static void buildMeshData(const Chunk& c, NeighborFn neighborAt, Meshdata& out) 
                     if (t == GRASS && f == 2) tint = {0.65f, 0.95f, 0.50f};
                     if (t == WATER && f == 2) tint = {0.0f, 0.0f, 1.0f};
 
-                    //temp lighting calculations based on depth
-                    int depth = glm::clamp(heightmap[x][z]-y, 0, 15);
+                    int nx = glm::clamp(n.x, 0, CX-1);
+                    int nz = glm::clamp(n.z, 0, CZ-1);
+                    float depth = glm::clamp(lighting[nx][nz]-(float)n.y, 0.0f, 15.0f);
+
                     addFace(V, I, f, base, info.tex[f][0], info.tex[f][1], depth, tint, info.alpha);
                 }
             }
