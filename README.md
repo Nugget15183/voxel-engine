@@ -5,6 +5,6 @@ Caves can be seen on the surface of terrain, and can also be found by flying thr
 
 To run the application, go to the releases page and download the .exe, it should run fine! :)
 
-![Cave With Lighting](Screenshot (891).png)
-![Another Cave With Lighting](Screenshot (892).png)
-![Underground Caves](Screenshot 2026-10-15 174752.png)
+<img width="1920" height="1080" alt="Screenshot (892)" src="https://github.com/user-attachments/assets/70f27da6-2939-4b1f-9567-413ed3d7dcc8" />
+<img width="1919" height="1004" alt="Screenshot 2026-10-15 174752" src="https://github.com/user-attachments/assets/0a74baeb-7208-43b6-bcd3-2e7bf4efce03" />
+<img width="1920" height="1080" alt="Screenshot (891)" src="https://github.com/user-attachments/assets/2c66b139-9f48-4bdd-83c4-219030f0e3b7" />
